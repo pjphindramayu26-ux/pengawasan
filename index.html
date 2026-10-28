@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#5b2a86">
+  <title>Pengawasan JPH - Internal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <div class="eyebrow">INTERNAL TOOL</div>
+      <h1>Instrumen &amp; Berita Acara Pengawasan JPH</h1>
+      <p>Isi sekali, jadi dua dokumen: Instrumen Pengawasan lalu Berita Acara. Tanda tangan langsung di HP, PDF dibuat lokal.</p>
+    </div>
+    <div class="header-badge">Offline PDF</div>
+  </header>
+
+  <nav class="stepnav" aria-label="Langkah pengisian">
+    <button type="button" class="navbtn" id="btnRiwayat">Riwayat</button>
+    <a href="#sec-data">1 Data</a>
+    <a href="#sec-profil">2 Profil</a>
+    <a href="#sec-instrumen">3 Instrumen</a>
+    <a href="#sec-saran">4 Saran</a>
+    <a href="#sec-ba">5 BA</a>
+    <a href="#sec-cetak">6 Cetak</a>
+  </nav>
+
+  <main class="container">
+    <div id="status" class="status hidden" role="status"></div>
+    <div id="editBanner" class="edit-banner hidden" role="status"></div>
+
+    <!-- 01 DATA PENGAWASAN -->
+    <section class="card step-card" id="sec-data">
+      <div class="step-label">01</div>
+      <div class="step-content">
+        <h2>Data Pengawasan</h2>
+        <p class="muted">Diisi satu kali. Dipakai di Instrumen dan di Berita Acara.</p>
+
+        <div class="grid two">
+          <label>
+            <span>Tanggal Pengawasan *</span>
+            <input type="date" id="tanggalPengawasan">
+          </label>
+          <label>
+            <span>Nomor Surat Tugas *</span>
+            <input type="text" id="nomorSuratTugas" placeholder="Contoh: B-875/BL.4/JH.06/9/2026" autocomplete="off">
+          </label>
+          <label>
+            <span>Tanggal Penerbitan Surat Tugas <small>(untuk BA)</small></span>
+            <input type="date" id="tanggalSuratTugas">
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <span class="field-label">Tim Pengawas * <small>nomor 1 = Ketua Tim (nama dan tanda tangannya dipakai di BA)</small></span>
+          <div id="timList" class="list-editor"></div>
+          <button class="btn small ghost" type="button" id="btnTambahAnggota">+ Tambah anggota</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 PROFIL PELAKU USAHA (Bagian I Instrumen) -->
+    <section class="card step-card" id="sec-profil">
+      <div class="step-label">02</div>
+      <div class="step-content">
+        <h2>Profil Pelaku Usaha</h2>
+        <p class="muted">Bagian I Instrumen. Nama, alamat, dan penanggung jawab otomatis dipakai juga di BA, jadi tidak perlu diisi lagi.</p>
+
+        <div class="field">
+          <span class="field-label">Jenis</span>
+          <div class="chips" id="chipJenis"></div>
+          <input type="text" id="jenisLain" class="hidden other-input" placeholder="Tulis jenis usaha" autocomplete="off">
+        </div>
+
+        <div class="grid two">
+          <label>
+            <span>Nama Pelaku Usaha *</span>
+            <input type="text" id="profNama" placeholder="Nama pelaku usaha" autocomplete="off">
+          </label>
+          <label>
+            <span>Nama Usaha / Outlet <small>(merek, untuk kalimat BA)</small></span>
+            <input type="text" id="profLokasi" placeholder="Contoh: Na Donat. Kosongkan bila sama" autocomplete="off">
+          </label>
+        </div>
+
+        <label>
+          <span>Alamat *</span>
+          <textarea id="profAlamat" rows="3" placeholder="Jl. ..., Desa/Kel. ..., Kec. ..."></textarea>
+        </label>
+
+        <div class="grid two">
+          <label>
+            <span>Provinsi *</span>
+            <input type="text" id="profProvinsi" autocomplete="off">
+          </label>
+          <label>
+            <span>Kabupaten / Kota *</span>
+            <input type="text" id="profKabkota" list="dlKabkota" placeholder="Ketik atau pilih" autocomplete="off">
+          </label>
+        </div>
+        <datalist id="dlKabkota"></datalist>
+
+        <div class="grid two">
+          <div class="field">
+            <div class="field-head">
+              <label class="field-label" for="profPj">Nama Penanggung Jawab *</label>
+              <button type="button" class="linkbtn" id="btnPjSama">samakan dengan pelaku usaha</button>
+            </div>
+            <input type="text" id="profPj" autocomplete="off">
+          </div>
+          <label>
+            <span>Nomor HP Penanggung Jawab</span>
+            <input type="tel" id="profHp" inputmode="tel" placeholder="08xxxxxxxxxx" autocomplete="off">
+          </label>
+        </div>
+
+        <div class="grid two">
+          <div class="field">
+            <span class="field-label">Status Gerai</span>
+            <div class="chips" id="chipStatusGerai"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Skala Usaha</span>
+            <div class="chips" id="chipSkala"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Dapur</span>
+            <div class="chips" id="chipDapur"></div>
+            <input type="text" id="dapurLain" class="hidden other-input" placeholder="Tulis status dapur" autocomplete="off">
+          </div>
+          <div class="field">
+            <span class="field-label">Gudang</span>
+            <div class="chips" id="chipGudang"></div>
+            <input type="text" id="gudangLain" class="hidden other-input" placeholder="Tulis status gudang" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="grid two">
+          <div class="field">
+            <div class="field-head">
+              <label class="field-label" for="profPenyelia">Penyelia Halal / Tim Manajemen Halal</label>
+              <button type="button" class="linkbtn" id="btnPenyeliaSama">samakan dengan PJ</button>
+            </div>
+            <input type="text" id="profPenyelia" placeholder="Nama" autocomplete="off">
+          </div>
+          <label>
+            <span>NIK Penyelia Halal</span>
+            <input type="text" id="profNik" inputmode="numeric" maxlength="16" placeholder="16 digit" autocomplete="off">
+          </label>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Nomor Sertifikat Halal</span>
+          <div id="sertList" class="list-editor"></div>
+          <button class="btn small ghost" type="button" id="btnTambahSert">+ Tambah nomor sertifikat</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 INSTRUMEN (Bagian II - VI) -->
+    <section class="card step-card" id="sec-instrumen">
+      <div class="step-label">03</div>
+      <div class="step-content">
+        <div class="section-head">
+          <div>
+            <h2>Instrumen Pengawasan</h2>
+            <p class="muted">Bagian II-VI. Tandai tiap butir: <b>S</b> sesuai, <b>TS</b> tidak sesuai, <b>&ndash;</b> tidak berlaku. Cepat: ketuk <em>Semua Sesuai</em>, lalu ubah butir yang berbeda saja.</p>
+          </div>
+          <button class="btn secondary" type="button" id="btnSemuaSesuai">Semua Sesuai (II-VI)</button>
+        </div>
+        <div class="summary-bar" id="summaryBar"></div>
+        <div id="instrumenList"></div>
+      </div>
+    </section>
+
+    <!-- 04 SARAN DAN TINDAKLANJUT -->
+    <section class="card step-card" id="sec-saran">
+      <div class="step-label">04</div>
+      <div class="step-content">
+        <h2>Saran dan Tindaklanjut</h2>
+        <p class="muted">Tampil di akhir Instrumen dan otomatis menjadi <em>Rekomendasi</em> di Berita Acara.</p>
+        <div id="saranList" class="list-editor"></div>
+        <div class="row-actions">
+          <button class="btn small ghost" type="button" id="btnTambahSaran">+ Tambah saran</button>
+          <button class="btn small secondary" type="button" id="btnSaranDariTS">Buat dari butir Tidak Sesuai</button>
+        </div>
+        <div class="field">
+          <span class="field-label">Saran umum <small>(ketuk untuk menambahkan)</small></span>
+          <div class="chips chips-wrap" id="saranUmum"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 BERITA ACARA -->
+    <section class="card step-card" id="sec-ba">
+      <div class="step-label">05</div>
+      <div class="step-content">
+        <h2>Berita Acara</h2>
+        <p class="muted">Seluruh isi BA diambil otomatis dari data di atas. Yang perlu dilakukan: tinjau hasilnya, lalu tanda tangan.</p>
+
+        <dl class="derived" id="baDerived"></dl>
+
+        <label>
+          <span>Hasil Pengawasan <small>(disusun otomatis dari Instrumen, boleh diedit)</small></span>
+          <textarea id="baHasil" rows="9"></textarea>
+        </label>
+        <div class="row-actions">
+          <button class="btn small ghost" type="button" id="btnHasilAuto">Susun ulang otomatis</button>
+          <span class="muted tiny" id="hasilMode"></span>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Rekomendasi Hasil Pengawasan <small>(dari Saran dan Tindaklanjut)</small></span>
+          <ol class="rekom-preview" id="baRekom"></ol>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-head">
+          <div>
+            <strong>Tanda Tangan</strong>
+            <p class="muted">Gunakan jari/stylus pada HP. Tanda tangan Penanggung Jawab diisi setiap berita acara.</p>
+          </div>
+          <button class="btn ghost" type="button" id="btnResetTtd">Bersihkan semua</button>
+        </div>
+
+        <div class="signature-grid">
+          <div class="signature-panel">
+            <div class="signature-title">
+              <div>
+                <strong>Penanggung Jawab</strong>
+                <small id="labelPJ">Belum ditandatangani</small>
+              </div>
+              <button class="btn small ghost" type="button" data-clear="ttdPJ">Hapus</button>
+            </div>
+            <canvas class="signature-pad" id="ttdPJ" aria-label="Area tanda tangan Penanggung Jawab"></canvas>
+          </div>
+
+          <div class="signature-panel">
+            <div class="signature-title">
+              <div>
+                <strong>Tim Pengawas JPH - Ketua Tim</strong>
+                <small id="labelTim">Template tersimpan di perangkat ini</small>
+              </div>
+              <button class="btn small ghost" type="button" data-clear="ttdTim">Hapus</button>
+            </div>
+            <canvas class="signature-pad" id="ttdTim" aria-label="Area tanda tangan Tim Pengawas JPH"></canvas>
+
+            <label class="file-field compact-grid">
+              <span>Atau upload tanda tangan</span>
+              <input type="file" id="uploadTtdTim" accept="image/png,image/jpeg" capture="environment">
+            </label>
+            <div class="signature-actions">
+              <button class="btn secondary" type="button" id="btnSimpanTemplate">Simpan nama &amp; tanda tangan Tim sebagai template</button>
+              <button class="btn ghost" type="button" id="btnHapusTemplate">Hapus template</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          <strong>Catatan:</strong> template Tim Pengawas (nama tim dan tanda tangan Ketua Tim) disimpan di <em>localStorage</em> browser perangkat ini, jadi pengawasan berikutnya tidak perlu mengisi ulang.
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 SIMPAN & CETAK -->
+    <section class="card step-card" id="sec-cetak">
+      <div class="step-label">06</div>
+      <div class="step-content">
+        <h2>Simpan &amp; Cetak</h2>
+        <p class="muted">Dua dokumen dari satu input. PDF dibuat di browser perangkat ini; Spreadsheet hanya dikirim saat Anda menekan tombol simpan.</p>
+
+        <div class="action-grid">
+          <button class="btn primary" type="button" id="btnPdfInstrumen">PDF Instrumen</button>
+          <button class="btn primary" type="button" id="btnPdfBA">PDF Berita Acara</button>
+          <button class="btn success" type="button" id="btnSimpanSpreadsheet">Simpan ke Spreadsheet</button>
+          <button class="btn ghost" type="button" id="btnSimpanDraft">Simpan Draft Lokal</button>
+        </div>
+        <div class="row-actions">
+          <button class="btn small ghost" type="button" id="btnResetForm">Form Baru</button>
+          <button class="btn small secondary hidden" type="button" id="btnSimpanBaru">Simpan sebagai data baru</button>
+        </div>
+        <p class="muted tiny">Tombol PDF membuka dialog cetak browser: pilih tujuan <strong>Simpan sebagai PDF</strong> (Save as PDF). Isian tersimpan otomatis sebagai draf di perangkat ini. Data yang sudah disimpan ke Spreadsheet bisa dilihat, diedit, dan dihapus lewat tombol <strong>Riwayat</strong> di bagian atas. Konfigurasi Spreadsheet ada di <code>config.js</code>.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Area cetak: tersembunyi di layar, hanya tampil saat dicetak / "Simpan sebagai PDF" ===== -->
+
+  <!-- Berita Acara. Teks kop ada di instrumen.js (KOP); logo selalu dari assets/logo.png. -->
+  <div id="printBA" aria-hidden="true">
+    <table class="pa-sheet">
+      <thead><tr><td class="pa-top"></td></tr></thead>
+      <tfoot><tr><td class="pa-bottom"></td></tr></tfoot>
+      <tbody>
+        <tr>
+          <td class="pa-body">
+            <header class="pa-kop">
+              <div class="pa-kop-inner">
+                <img id="paLogo" class="pa-logo" src="assets/logo.png" alt="">
+                <div class="pa-k1"></div>
+                <div class="pa-k2"></div>
+                <div class="pa-k3"></div>
+                <div class="pa-k4"></div>
+                <div class="pa-k5"></div>
+              </div>
+            </header>
+
+            <h1 class="pa-title">BERITA ACARA HASIL PENGAWASAN JPH</h1>
+            <p id="paOpening" class="pa-opening"></p>
+            <div id="paDetails" class="pa-details"></div>
+
+            <h2 class="pa-h">Dengan hasil pengawasan berupa</h2>
+            <div id="paHasil" class="pa-text"></div>
+            <h2 class="pa-h">Rekomendasi hasil pengawasan</h2>
+            <div id="paRekom" class="pa-text"></div>
+
+            <section class="pa-closing">
+              <p class="pa-conclusion">Demikian Berita Acara Pengawasan ini dibuat dengan sebenarnya, untuk kemudian dilampirkan dalam Laporan Hasil Pengawasan Jaminan Produk Halal.</p>
+              <div class="pa-sign">
+                <div class="pa-sign-label">Penanggung Jawab,</div>
+                <div class="pa-sign-label">Tim Pengawas JPH<br>Ketua Tim,</div>
+                <div class="pa-sig-box"><img id="paSigPJ" class="pa-sig" alt=""></div>
+                <div class="pa-sig-box"><img id="paSigTim" class="pa-sig" alt=""></div>
+                <div id="paNamaPJ" class="pa-name"></div>
+                <div id="paNamaTim" class="pa-name"></div>
+              </div>
+            </section>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Instrumen. Halaman disusun oleh app.js (buildInstrumenPages) agar nomor halaman dan kepala tabel berulang tepat. -->
+  <div id="printInstrumen" aria-hidden="true"></div>
+
+  <!-- Riwayat: data yang sudah disimpan ke Spreadsheet (lihat, edit, hapus) -->
+  <div id="riwayatPanel" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="riwayatJudul">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="riwayatJudul">Riwayat pengawasan</h2>
+        <button class="btn small ghost" type="button" id="btnTutupRiwayat">Tutup</button>
+      </div>
+      <p class="muted tiny">Data yang sudah disimpan ke Spreadsheet. Buka untuk melihat atau mengedit, atau hapus bila tidak diperlukan.</p>
+      <div class="row-actions">
+        <input type="search" id="riwayatCari" placeholder="Cari nama, kab/kota, nomor surat..." autocomplete="off">
+        <button class="btn small secondary" type="button" id="btnMuatRiwayat">Muat ulang</button>
+      </div>
+      <div id="riwayatInfo" class="status hidden"></div>
+      <div id="riwayatList"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" aria-live="polite"></div>
+  <script src="config.js"></script>
+  <script src="instrumen.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
