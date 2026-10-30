@@ -19,17 +19,21 @@
 
   <nav class="stepnav" aria-label="Langkah pengisian">
     <button type="button" class="navbtn" id="btnRiwayat">Riwayat</button>
-    <a href="#sec-data">1 Data</a>
-    <a href="#sec-profil">2 Profil</a>
-    <a href="#sec-instrumen">3 Instrumen</a>
-    <a href="#sec-saran">4 Saran</a>
-    <a href="#sec-ba">5 BA</a>
-    <a href="#sec-cetak">6 Cetak</a>
+    <button type="button" class="nav-step is-active" data-step="1" aria-current="step">1 <span>Data</span></button>
+    <button type="button" class="nav-step" data-step="2">2 <span>Profil</span></button>
+    <button type="button" class="nav-step" data-step="3">3 <span>Instrumen</span></button>
+    <button type="button" class="nav-step" data-step="4">4 <span>Saran</span></button>
+    <button type="button" class="nav-step" data-step="5">5 <span>BA</span></button>
+    <button type="button" class="nav-step" data-step="6">6 <span>Cetak</span></button>
   </nav>
 
   <main class="container">
     <div id="status" class="status hidden" role="status"></div>
     <div id="editBanner" class="edit-banner hidden" role="status"></div>
+    <div class="step-progress" aria-live="polite">
+      <div class="step-progress-top"><strong id="stepCounter">Langkah 1 dari 6</strong><span id="stepName">Data Pengawasan</span></div>
+      <div class="step-progress-track"><i id="stepProgressBar" style="width:16.67%"></i></div>
+    </div>
 
     <!-- 01 DATA PENGAWASAN -->
     <section class="card step-card" id="sec-data">
@@ -60,6 +64,7 @@
           <div id="timList" class="list-editor"></div>
           <button class="btn small ghost" type="button" id="btnTambahAnggota">+ Tambah anggota</button>
         </div>
+        <div class="page-actions"><span class="page-hint">Lengkapi data dasar pengawasan.</span><button class="btn primary" type="button" data-next="2">Lanjut ke Profil <span aria-hidden="true">→</span></button></div>
       </div>
     </section>
 
@@ -158,6 +163,7 @@
           <div id="sertList" class="list-editor"></div>
           <button class="btn small ghost" type="button" id="btnTambahSert">+ Tambah nomor sertifikat</button>
         </div>
+        <div class="page-actions"><button class="btn ghost" type="button" data-prev="1">← Kembali</button><button class="btn primary" type="button" data-next="3">Lanjut ke Instrumen →</button></div>
       </div>
     </section>
 
@@ -174,6 +180,7 @@
         </div>
         <div class="summary-bar" id="summaryBar"></div>
         <div id="instrumenList"></div>
+        <div class="page-actions"><button class="btn ghost" type="button" data-prev="2">← Kembali</button><button class="btn primary" type="button" data-next="4">Lanjut ke Saran →</button></div>
       </div>
     </section>
 
@@ -182,7 +189,7 @@
       <div class="step-label">04</div>
       <div class="step-content">
         <h2>Saran dan Tindaklanjut</h2>
-        <p class="muted">Tampil di akhir Instrumen dan otomatis menjadi <em>Rekomendasi</em> di Berita Acara.</p>
+        <p class="muted">Digunakan sebagai bagian akhir Instrumen. Rekomendasi pada Berita Acara diisi terpisah secara manual.</p>
         <div id="saranList" class="list-editor"></div>
         <div class="row-actions">
           <button class="btn small ghost" type="button" id="btnTambahSaran">+ Tambah saran</button>
@@ -192,6 +199,7 @@
           <span class="field-label">Saran umum <small>(ketuk untuk menambahkan)</small></span>
           <div class="chips chips-wrap" id="saranUmum"></div>
         </div>
+        <div class="page-actions"><button class="btn ghost" type="button" data-prev="3">← Kembali</button><button class="btn primary" type="button" data-next="5">Lanjut ke Berita Acara →</button></div>
       </div>
     </section>
 
@@ -213,9 +221,13 @@
           <span class="muted tiny" id="hasilMode"></span>
         </div>
 
-        <div class="field">
-          <span class="field-label">Rekomendasi Hasil Pengawasan <small>(dari Saran dan Tindaklanjut)</small></span>
-          <ol class="rekom-preview" id="baRekom"></ol>
+        <div class="field ba-rekom-field">
+          <span class="field-label">Rekomendasi Hasil Pengawasan <small>(ditulis manual; tidak lagi terikat dengan Tab 4)</small></span>
+          <textarea id="baRekomInput" rows="6" placeholder="Tulis rekomendasi hasil pengawasan. Pisahkan setiap poin dengan baris baru."></textarea>
+          <div class="rekom-preview-wrap">
+            <span class="field-label">Pratinjau poin rekomendasi</span>
+            <ol class="rekom-preview" id="baRekom"></ol>
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -238,6 +250,11 @@
               <button class="btn small ghost" type="button" data-clear="ttdPJ">Hapus</button>
             </div>
             <canvas class="signature-pad" id="ttdPJ" aria-label="Area tanda tangan Penanggung Jawab"></canvas>
+            <div class="signature-tools">
+              <button class="btn small ghost" type="button" data-undo="ttdPJ" disabled>Undo</button>
+              <button class="btn small ghost" type="button" data-redo="ttdPJ" disabled>Redo</button>
+              <button class="btn small secondary" type="button" data-finish="ttdPJ">Selesai tanda tangan</button>
+            </div>
           </div>
 
           <div class="signature-panel">
@@ -249,6 +266,11 @@
               <button class="btn small ghost" type="button" data-clear="ttdTim">Hapus</button>
             </div>
             <canvas class="signature-pad" id="ttdTim" aria-label="Area tanda tangan Tim Pengawas JPH"></canvas>
+            <div class="signature-tools">
+              <button class="btn small ghost" type="button" data-undo="ttdTim" disabled>Undo</button>
+              <button class="btn small ghost" type="button" data-redo="ttdTim" disabled>Redo</button>
+              <button class="btn small secondary" type="button" data-finish="ttdTim">Selesai tanda tangan</button>
+            </div>
 
             <label class="file-field compact-grid">
               <span>Atau upload tanda tangan</span>
@@ -261,9 +283,18 @@
           </div>
         </div>
 
-        <div class="note">
-          <strong>Catatan:</strong> template Tim Pengawas (nama tim dan tanda tangan Ketua Tim) disimpan di <em>localStorage</em> browser perangkat ini, jadi pengawasan berikutnya tidak perlu mengisi ulang.
+        <div class="member-signature-section">
+          <div class="member-signature-heading">
+            <strong>Tanda Tangan Anggota Tim Pengawas</strong>
+            <p class="muted">Kolom tanda tangan dibuat otomatis mengikuti anggota tim pada Tab 1 (selain Ketua Tim).</p>
+          </div>
+          <div id="memberSignatures" class="signature-grid member-signature-grid"></div>
         </div>
+
+        <div class="note">
+          <strong>Catatan:</strong> template Tim Pengawas menyimpan nama tim dan tanda tangan Ketua Tim. Tanda tangan anggota dan Penanggung Jawab disimpan pada draf pengawasan ini.
+        </div>
+        <div class="page-actions"><button class="btn ghost" type="button" data-prev="4">← Kembali</button><button class="btn primary" type="button" data-next="6">Lanjut ke Simpan &amp; Cetak →</button></div>
       </div>
     </section>
 
@@ -285,6 +316,7 @@
           <button class="btn small secondary hidden" type="button" id="btnSimpanBaru">Simpan sebagai data baru</button>
         </div>
         <p class="muted tiny">Tombol PDF membuka dialog cetak browser: pilih tujuan <strong>Simpan sebagai PDF</strong> (Save as PDF). Isian tersimpan otomatis sebagai draf di perangkat ini. Data yang sudah disimpan ke Spreadsheet bisa dilihat, diedit, dan dihapus lewat tombol <strong>Riwayat</strong> di bagian atas. Konfigurasi Spreadsheet ada di <code>config.js</code>.</p>
+        <div class="page-actions"><button class="btn ghost" type="button" data-prev="5">← Kembali ke BA</button><span class="page-hint">Periksa kembali dokumen sebelum disimpan atau dicetak.</span></div>
       </div>
     </section>
   </main>
@@ -317,7 +349,7 @@
             <h2 class="pa-h">Dengan hasil pengawasan berupa</h2>
             <div id="paHasil" class="pa-text"></div>
             <h2 class="pa-h">Rekomendasi hasil pengawasan</h2>
-            <div id="paRekom" class="pa-text"></div>
+            <ol id="paRekom" class="pa-rekom-list"></ol>
 
             <section class="pa-closing">
               <p class="pa-conclusion">Demikian Berita Acara Pengawasan ini dibuat dengan sebenarnya, untuk kemudian dilampirkan dalam Laporan Hasil Pengawasan Jaminan Produk Halal.</p>
@@ -329,6 +361,7 @@
                 <div id="paNamaPJ" class="pa-name"></div>
                 <div id="paNamaTim" class="pa-name"></div>
               </div>
+              <div id="paSignMembers" class="pa-sign-members"></div>
             </section>
           </td>
         </tr>

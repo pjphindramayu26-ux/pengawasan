@@ -6,8 +6,8 @@
     1 Data pengawasan + tim   -> dipakai Instrumen dan BA
     2 Profil pelaku usaha     -> dipakai Instrumen (Bagian I) dan BA (data pelaku usaha, lokasi, PJ)
     3 Instrumen II-VI         -> Instrumen; ringkasannya menjadi "Hasil Pengawasan" di BA
-    4 Saran dan Tindaklanjut  -> Instrumen; menjadi "Rekomendasi" di BA
-    5 BA                      -> hanya tinjau hasil + tanda tangan
+    4 Saran dan Tindaklanjut  -> Instrumen saja (terpisah dari rekomendasi BA)
+    5 BA                      -> hasil otomatis, rekomendasi manual + tanda tangan
     6 Cetak                   -> PDF Instrumen dan PDF BA (dialog cetak browser: "Simpan sebagai PDF")
 
   Data butir instrumen ada di instrumen.js. Tata letak cetak ada di styles.css (bagian "Area cetak").
@@ -20,6 +20,10 @@ const TIM_KEY = 'bpjph_tim_template_v2';
 const LOGO_SRC = 'assets/logo.png'; // logo kop surat: path tetap
 let toastTimer;
 let pendingLoads = 0; // jumlah gambar yang sedang dimuat ke kanvas tanda tangan
+let currentStep = 1;
+const signatureHistory = new Map();
+const signatureResizers = new Map();
+let memberSignatureCount = -1;
 
 // ---------------------------------------------------------------------------
 // Util
@@ -82,14 +86,14 @@ const fileSafe = (s) => String(s || '').trim().replace(/[^a-z0-9]+/gi, '_').repl
 // State: satu-satunya sumber data untuk Instrumen dan BA
 // ---------------------------------------------------------------------------
 const freshState = () => ({
-  meta: { tanggal: todayIso(), nomorSurat: '', tanggalSurat: '', tim: ['Imam Ardhi Rosyadi', ''] }, // tim[0] = Ketua Tim
+  meta: { tanggal: todayIso(), nomorSurat: '', tanggalSurat: '', tim: ['Imam Ardhi Rosyadi'] }, // tim[0] = Ketua Tim
   profil: {
     jenis: '', nama: '', lokasi: '', alamat: '', provinsi: 'Jawa Barat', kabkota: '', pj: '', hp: '',
     statusGerai: '', skala: '', dapur: '', gudang: '', penyelia: '', nik: '', sertifikat: ['']
   },
   nilai: {},                                            // id butir -> { v: 'S' | 'TS' | 'NA', ket }
   saran: [''],
-  ba: { hasil: '', auto: true, ttdPJ: '', ttdTim: '' },
+  ba: { hasil: '', auto: true, rekom: '', ttdPJ: '', ttdTim: '', ttdAnggota: [], ttdDone: { ttdPJ: false, ttdTim: false, anggota: [] } },
   rec: { id: '', dibuat: '', diubah: '', pending: '' }, // data di Spreadsheet yang sedang diedit (kosong = data baru)
   dirty: false                                          // ada perubahan yang belum disimpan ke Spreadsheet
 });
@@ -220,8 +224,20 @@ function renderList(cfg) {
     input.value = val;
     input.addEventListener('input', () => { arr[i] = input.value; changed(); });
     const del = h('button', { class: 'btn small ghost', type: 'button', title: 'Hapus baris', 'aria-label': 'Hapus baris' }, '\u00D7');
-    del.disabled = (i === 0 && cfg.lockFirst) || arr.length <= 1;
-    del.addEventListener('click', () => { arr.splice(i, 1); if (!arr.length) arr.push(''); renderList(cfg); changed(); });
+    del.hidden = i === 0 && !!cfg.lockFirst;
+    del.disabled = false;
+    del.addEventListener('click', () => {
+      if (cfg.box === 'timList' && i > 0) {
+        collect();
+        S.ba.ttdAnggota.splice(i - 1, 1);
+        S.ba.ttdDone.anggota.splice(i - 1, 1);
+      }
+      if (arr.length <= 1) arr[i] = '';
+      else arr.splice(i, 1);
+      if (!arr.length) arr.push('');
+      renderList(cfg);
+      changed();
+    });
     box.appendChild(h('div', { class: 'list-row' }, h('span', { class: 'list-no' }, `${i + 1}.`), input, del));
   });
 }
@@ -229,7 +245,12 @@ const renderLists = () => Object.values(LISTS).forEach(renderList);
 
 function addToList(cfg, text = '') {
   const arr = cfg.arr();
-  if (text && arr.length && !arr[arr.length - 1].trim()) arr[arr.length - 1] = text; else arr.push(text);
+  const replacesBlank = !!(text && arr.length && !String(arr[arr.length - 1] || '').trim());
+  if (replacesBlank) arr[arr.length - 1] = text; else arr.push(text);
+  if (cfg.box === 'timList' && !replacesBlank && arr.length > 1) {
+    S.ba.ttdAnggota.push('');
+    S.ba.ttdDone.anggota.push(false);
+  }
   renderList(cfg);
   changed();
   const inputs = $(cfg.box).querySelectorAll('.list-input');
@@ -363,7 +384,7 @@ function renderSummary() {
   });
 }
 
-// ringkasan BA + hasil otomatis + rekomendasi: semuanya turunan dari data di atas
+// Ringkasan BA: hasil mengikuti Instrumen; rekomendasi berasal dari isian manual BA.
 function renderDerived() {
   renderSummary();
   if (S.ba.auto) { S.ba.hasil = buildHasil(); $('baHasil').value = S.ba.hasil; }
@@ -382,9 +403,10 @@ function renderDerived() {
 
   const ol = $('baRekom');
   ol.textContent = '';
-  const sr = saranList();
-  if (sr.length) sr.forEach((s) => ol.appendChild(h('li', null, s)));
-  else ol.appendChild(h('li', { class: 'empty' }, 'Belum ada saran. Isi di bagian 04.'));
+  const rekom = recommendationLines();
+  if (rekom.length) rekom.forEach((line) => ol.appendChild(h('li', null, line)));
+  else ol.appendChild(h('li', { class: 'empty' }, 'Belum ada rekomendasi. Tulis secara manual pada kolom di atas.'));
+  syncMemberSignaturePads();
   updateSignatureLabels();
   renderRecordUi();
 }
@@ -408,8 +430,16 @@ function renderSaranUmum() {
 function collect() {
   if (pendingLoads === 0) {
     try {
-      S.ba.ttdPJ = hasInk($('ttdPJ')) ? signatureDataUrl($('ttdPJ')) : '';
-      S.ba.ttdTim = hasInk($('ttdTim')) ? signatureDataUrl($('ttdTim')) : '';
+      const read = (canvas, previous = '') => {
+        if (!canvas) return previous;
+        // Gambar yang menunggu halaman tanda tangan dibuka tetap dipertahankan.
+        if (canvas.dataset.pendingImage) return canvas.dataset.pendingImage;
+        if (canvas.dataset.signatureEmpty === '1') return '';
+        return hasInk(canvas) ? signatureDataUrl(canvas) : previous;
+      };
+      S.ba.ttdPJ = read($('ttdPJ'), S.ba.ttdPJ || '');
+      S.ba.ttdTim = read($('ttdTim'), S.ba.ttdTim || '');
+      S.ba.ttdAnggota = S.meta.tim.slice(1).map((_, i) => read($(`ttdAnggota-${i}`), S.ba.ttdAnggota[i] || ''));
     } catch (e) { /* kanvas belum siap */ }
   }
   S.savedAt = new Date().toISOString();
@@ -418,16 +448,18 @@ function collect() {
 function saveDraft(silent = true) {
   collect();
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(S));
-    if (!silent) showToast('Draf disimpan di perangkat ini.');
+    if (S.submitted) localStorage.removeItem(DRAFT_KEY);
+    else localStorage.setItem(DRAFT_KEY, JSON.stringify(S));
+    if (!silent && !S.submitted) showToast('Draf disimpan di perangkat ini.');
+    if (!silent && S.submitted) showToast('Data sudah dikirim. Perubahan berikutnya akan menjadi draf baru.');
   } catch (e) {
     showStatus('Draf tidak dapat disimpan (penyimpanan browser penuh/dinonaktifkan).', 'warn');
   }
 }
 const scheduleSave = debounce(() => saveDraft(true), 600);
 
-function changed() { S.dirty = true; renderDerived(); scheduleSave(); }
-function touch() { S.dirty = true; scheduleSave(); renderRecordUi(); } // perubahan non-teks (tanda tangan)
+function changed() { S.dirty = true; S.submitted = false; renderDerived(); scheduleSave(); }
+function touch() { S.dirty = true; S.submitted = false; scheduleSave(); renderRecordUi(); } // perubahan non-teks (tanda tangan)
 
 function readTimTemplate() {
   try {
@@ -449,40 +481,69 @@ function loadState() {
   }
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) S = merge(S, JSON.parse(raw));
+    if (raw) {
+      const saved = JSON.parse(raw);
+      S = merge(S, saved);
+      // Migrasi satu kali: rekomendasi lama disalin ke kolom BA, lalu berdiri sendiri.
+      if (!saved.ba || !Object.prototype.hasOwnProperty.call(saved.ba, 'rekom')) {
+        S.ba.rekom = (saved.saran || []).map((v) => String(v || '').trim()).filter(Boolean).join('\n');
+      }
+    }
   } catch (e) { /* draf rusak: abaikan */ }
+  S.ba.ttdAnggota = Array.isArray(S.ba.ttdAnggota) ? S.ba.ttdAnggota : [];
+  S.ba.ttdDone = S.ba.ttdDone || { ttdPJ: false, ttdTim: false, anggota: [] };
+  S.ba.ttdDone.anggota = Array.isArray(S.ba.ttdDone.anggota) ? S.ba.ttdDone.anggota : [];
   if (!S.ba.ttdTim && tpl && tpl.signature) S.ba.ttdTim = tpl.signature;
 }
 
 function applyState() {
+  S.meta.tim = Array.isArray(S.meta.tim) && S.meta.tim.length ? S.meta.tim : [''];
+  S.ba.ttdAnggota = Array.isArray(S.ba.ttdAnggota) ? S.ba.ttdAnggota : [];
+  S.ba.ttdDone = S.ba.ttdDone || { ttdPJ: false, ttdTim: false, anggota: [] };
+  S.ba.ttdDone.anggota = Array.isArray(S.ba.ttdDone.anggota) ? S.ba.ttdDone.anggota : [];
+  while (S.meta.tim.length > 1) {
+    const lastMember = S.meta.tim.length - 2;
+    if (String(S.meta.tim[S.meta.tim.length - 1] || '').trim() || S.ba.ttdAnggota[lastMember] || S.ba.ttdDone.anggota[lastMember]) break;
+    S.meta.tim.pop();
+    S.ba.ttdAnggota.pop();
+    S.ba.ttdDone.anggota.pop();
+  }
   BIND.forEach(([id, path]) => { $(id).value = getPath(S, path) || ''; });
   renderLists();
   renderChips();
   paintAll();
   $('baHasil').value = S.ba.hasil;
+  $('baRekomInput').value = S.ba.rekom || '';
   clearCanvas($('ttdPJ'));
   clearCanvas($('ttdTim'));
   if (S.ba.ttdPJ) loadImageToCanvas(S.ba.ttdPJ, $('ttdPJ'));
   if (S.ba.ttdTim) loadImageToCanvas(S.ba.ttdTim, $('ttdTim'));
+  memberSignatureCount = -1;
   renderDerived();
+  refreshAllSignatureControls();
 }
 
 function saveTimTemplate() {
   const names = timNames();
   if (!names.length) { showStatus('Isi nama Ketua Tim terlebih dahulu.', 'warn'); return; }
-  const item = { names, signature: hasInk($('ttdTim')) ? signatureDataUrl($('ttdTim')) : '' };
+  const item = { names, signature: hasInk($('ttdTim')) ? signatureDataUrl($('ttdTim')) : (S.ba.ttdTim || '') };
   try { localStorage.setItem(TIM_KEY, JSON.stringify(item)); showToast('Template Tim Pengawas disimpan di perangkat.'); }
   catch (e) { showStatus('Template tidak dapat disimpan di browser ini.', 'warn'); }
 }
 
 function deleteTimTemplate() {
   localStorage.removeItem(TIM_KEY);
+  S.ba.ttdTim = '';
+  setSignatureDoneState('ttdTim', false);
   clearCanvas($('ttdTim'));
+  touch();
   showToast('Template Tim Pengawas dihapus.');
 }
 
 function restoreTimSignature() {
   const tpl = readTimTemplate();
+  setSignatureDoneState('ttdTim', false);
+  S.ba.ttdTim = tpl && tpl.signature ? tpl.signature : '';
   clearCanvas($('ttdTim'));
   if (tpl && tpl.signature) loadImageToCanvas(tpl.signature, $('ttdTim'));
 }
@@ -492,7 +553,10 @@ function resetForm() {
   localStorage.removeItem(DRAFT_KEY);
   Object.keys(otherOpen).forEach((k) => delete otherOpen[k]);
   loadState();
+  signatureHistory.clear();
+  memberSignatureCount = -1;
   applyState();
+  showStep(1, false);
   clearStatus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   showToast('Form baru siap diisi.');
@@ -541,71 +605,246 @@ function hasInk(canvas) {
   return false;
 }
 
+function signatureDoneState(id) {
+  S.ba.ttdDone = S.ba.ttdDone || { ttdPJ: false, ttdTim: false, anggota: [] };
+  S.ba.ttdDone.anggota = S.ba.ttdDone.anggota || [];
+  if (id.startsWith('ttdAnggota-')) {
+    const idx = Number(id.split('-')[1]);
+    return !!S.ba.ttdDone.anggota[idx];
+  }
+  return !!S.ba.ttdDone[id];
+}
+
+function setSignatureDoneState(id, value) {
+  S.ba.ttdDone = S.ba.ttdDone || { ttdPJ: false, ttdTim: false, anggota: [] };
+  S.ba.ttdDone.anggota = S.ba.ttdDone.anggota || [];
+  if (id.startsWith('ttdAnggota-')) {
+    const idx = Number(id.split('-')[1]);
+    S.ba.ttdDone.anggota[idx] = !!value;
+  } else S.ba.ttdDone[id] = !!value;
+}
+
+function signatureStack(id) {
+  if (!signatureHistory.has(id)) signatureHistory.set(id, { undo: [], redo: [] });
+  return signatureHistory.get(id);
+}
+
+function canvasSnapshot(canvas) {
+  if (!canvas.width || !canvas.height) return null;
+  try { return canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height); }
+  catch (e) { return null; }
+}
+
+function restoreCanvasSnapshot(canvas, snapshot) {
+  if (!snapshot || !canvas.width || !canvas.height) return;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.putImageData(snapshot, 0, 0);
+  if (hasInk(canvas)) delete canvas.dataset.signatureEmpty; else canvas.dataset.signatureEmpty = '1';
+  updateSignatureLabels();
+  updateSignatureControls(canvas.id);
+  touch();
+}
+
+function updateSignatureControls(id) {
+  const canvas = $(id);
+  if (!canvas) return;
+  const locked = signatureDoneState(id);
+  canvas.classList.toggle('is-locked', locked);
+  canvas.setAttribute('aria-disabled', String(locked));
+  // Status terkunci juga menonaktifkan pointer; saat dibuka kembali kanvas aktif lagi.
+  canvas.style.pointerEvents = (locked || canvas.dataset.loadingImage === '1') ? 'none' : '';
+  const state = signatureStack(id);
+  const undo = document.querySelector(`[data-undo="${id}"]`);
+  const redo = document.querySelector(`[data-redo="${id}"]`);
+  const clear = document.querySelector(`[data-clear="${id}"]`);
+  const finish = document.querySelector(`[data-finish="${id}"]`);
+  if (undo) undo.disabled = locked || !state.undo.length;
+  if (redo) redo.disabled = locked || !state.redo.length;
+  if (clear) clear.disabled = locked || !hasInk(canvas);
+  if (finish) {
+    finish.textContent = locked ? 'Edit kembali' : 'Selesai tanda tangan';
+    finish.classList.toggle('is-complete', locked);
+  }
+  const status = document.querySelector(`[data-sign-status="${id}"]`);
+  if (status) status.textContent = locked ? 'Selesai · terkunci' : (hasInk(canvas) ? 'Tanda tangan tersedia · belum dikunci' : 'Belum ditandatangani');
+}
+
+function refreshAllSignatureControls() {
+  ['ttdPJ', 'ttdTim', ...S.meta.tim.slice(1).map((_, i) => `ttdAnggota-${i}`)].forEach(updateSignatureControls);
+}
+
 function setupSignatureCanvas(canvas) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  let drawing = false;
-  let last = null;
-
+  const id = canvas.id;
   const resize = () => {
-    // Isi lama hanya dipertahankan bila memang ada tanda tangan. Kanvas kosong yang dimuat ulang secara
-    // asinkron bisa selesai belakangan dan menimpa tanda tangan yang baru dipulihkan dari draf/template.
-    const old = canvas.width && canvas.height && hasInk(canvas) ? canvas.toDataURL('image/png') : null;
     const rect = canvas.getBoundingClientRect();
+    if (rect.width < 5 || rect.height < 5) return; // canvas dalam tab tersembunyi: tunggu halaman dibuka
+    const old = canvas.width && canvas.height && hasInk(canvas) ? canvas.toDataURL('image/png') : '';
     const ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     canvas.width = Math.round(rect.width * ratio);
     canvas.height = Math.round(rect.height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2.2; ctx.strokeStyle = '#111111';
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    if (old) loadImageToCanvas(old, canvas);
+    const c = canvas.getContext('2d', { willReadFrequently: true });
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = 2.2; c.strokeStyle = '#111111';
+    c.clearRect(0, 0, rect.width, rect.height);
+    signatureHistory.set(id, { undo: [], redo: [] });
+    const pending = canvas.dataset.pendingImage || old;
+    delete canvas.dataset.pendingImage;
+    if (pending) { delete canvas.dataset.signatureEmpty; loadImageToCanvas(pending, canvas); }
+    else canvas.dataset.signatureEmpty = '1';
+    updateSignatureControls(id);
   };
+  signatureResizers.set(id, resize);
   const pos = (ev) => { const rect = canvas.getBoundingClientRect(); return { x: ev.clientX - rect.left, y: ev.clientY - rect.top }; };
+  let drawing = false;
+  let last = null;
+  let beforeStroke = null;
 
-  canvas.addEventListener('pointerdown', (ev) => { drawing = true; last = pos(ev); canvas.setPointerCapture(ev.pointerId); });
-  canvas.addEventListener('pointermove', (ev) => {
-    if (!drawing) return;
-    const p = pos(ev);
-    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
-    last = p;
+  canvas.addEventListener('pointerdown', (ev) => {
+    if (signatureDoneState(id) || canvas.width === 0 || canvas.height === 0) return;
+    drawing = true;
+    beforeStroke = canvasSnapshot(canvas);
+    last = pos(ev);
+    if (canvas.setPointerCapture) canvas.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
   });
-  const stop = () => { if (!drawing) return; drawing = false; last = null; updateSignatureLabels(); touch(); };
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!drawing || signatureDoneState(id)) return;
+    const p = pos(ev);
+    const c = canvas.getContext('2d');
+    c.beginPath(); c.moveTo(last.x, last.y); c.lineTo(p.x, p.y); c.stroke();
+    last = p;
+    delete canvas.dataset.signatureEmpty;
+  });
+  const stop = () => {
+    if (!drawing) return;
+    drawing = false; last = null;
+    if (beforeStroke) {
+      const stack = signatureStack(id);
+      stack.undo.push(beforeStroke);
+      if (stack.undo.length > 30) stack.undo.shift();
+      stack.redo = [];
+    }
+    beforeStroke = null;
+    updateSignatureLabels();
+    updateSignatureControls(id);
+    touch();
+  };
   canvas.addEventListener('pointerup', stop);
   canvas.addEventListener('pointercancel', stop);
   resize();
 }
 
 function clearCanvas(canvas) {
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const rect = canvas.getBoundingClientRect();
   const ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  canvas.width = Math.round(rect.width * ratio);
-  canvas.height = Math.round(rect.height * ratio);
+  const width = Math.max(1, Math.round((rect.width || 300) * ratio));
+  const height = Math.max(1, Math.round((rect.height || 185) * ratio));
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
+  ctx.clearRect(0, 0, width / ratio, height / ratio);
+  canvas.dataset.signatureEmpty = '1';
+  delete canvas.dataset.pendingImage;
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2.2; ctx.strokeStyle = '#111111';
+  signatureHistory.set(canvas.id, { undo: [], redo: [] });
   updateSignatureLabels();
+  updateSignatureControls(canvas.id);
 }
 
 function loadImageToCanvas(src, canvas) {
+  if (!src) return;
+  const rectNow = canvas.getBoundingClientRect();
+  if (rectNow.width < 5 || rectNow.height < 5) {
+    canvas.dataset.pendingImage = src;
+    delete canvas.dataset.signatureEmpty;
+    return;
+  }
+  delete canvas.dataset.signatureEmpty;
+  delete canvas.dataset.pendingImage;
   const img = new Image();
+  canvas.dataset.loadingImage = '1';
+  canvas.style.pointerEvents = 'none';
   pendingLoads++;
-  const done = () => { pendingLoads = Math.max(0, pendingLoads - 1); };
+  const done = () => {
+    pendingLoads = Math.max(0, pendingLoads - 1);
+    delete canvas.dataset.loadingImage;
+    canvas.style.pointerEvents = signatureDoneState(canvas.id) ? 'none' : '';
+    updateSignatureControls(canvas.id);
+  };
   img.onload = () => {
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const rect = canvas.getBoundingClientRect();
+    if (rect.width < 5 || rect.height < 5) {
+      canvas.dataset.pendingImage = src;
+      done();
+      return;
+    }
     const ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
     const scale = Math.min((rect.width - 20) / img.width, (rect.height - 20) / img.height);
     const w = img.width * scale, hh = img.height * scale;
     ctx.drawImage(img, (rect.width - w) / 2, (rect.height - hh) / 2, w, hh);
     removeWhiteBackground(canvas);
+    delete canvas.dataset.signatureEmpty;
+    delete canvas.dataset.pendingImage;
+    signatureHistory.set(canvas.id, { undo: [], redo: [] });
     done();
     updateSignatureLabels();
+    updateSignatureControls(canvas.id);
   };
   img.onerror = done;
   img.src = src;
+}
+
+function undoSignature(id) {
+  const canvas = $(id); const stack = signatureStack(id);
+  if (!canvas || signatureDoneState(id) || !stack.undo.length) return;
+  const current = canvasSnapshot(canvas); if (current) stack.redo.push(current);
+  restoreCanvasSnapshot(canvas, stack.undo.pop());
+  updateSignatureControls(id);
+}
+
+function redoSignature(id) {
+  const canvas = $(id); const stack = signatureStack(id);
+  if (!canvas || signatureDoneState(id) || !stack.redo.length) return;
+  const current = canvasSnapshot(canvas); if (current) stack.undo.push(current);
+  restoreCanvasSnapshot(canvas, stack.redo.pop());
+  updateSignatureControls(id);
+}
+
+function clearSignature(id) {
+  const canvas = $(id);
+  if (!canvas || signatureDoneState(id)) return;
+  const before = canvasSnapshot(canvas);
+  if (before && hasInk(canvas)) {
+    const stack = signatureStack(id); stack.undo.push(before); stack.redo = [];
+  }
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.dataset.signatureEmpty = '1';
+  delete canvas.dataset.pendingImage;
+  if (id === 'ttdPJ' || id === 'ttdTim') S.ba[id] = '';
+  else if (id.startsWith('ttdAnggota-')) S.ba.ttdAnggota[Number(id.split('-')[1])] = '';
+  updateSignatureLabels(); updateSignatureControls(id); touch();
+}
+
+function finishSignature(id) {
+  const canvas = $(id);
+  if (!canvas) return;
+  if (signatureDoneState(id)) {
+    setSignatureDoneState(id, false);
+    showToast('Tanda tangan dibuka kembali untuk diedit.');
+  } else {
+    if (!hasInk(canvas)) { showToast('Buat tanda tangan terlebih dahulu.'); return; }
+    setSignatureDoneState(id, true);
+    showToast('Tanda tangan selesai dan dikunci.');
+  }
+  updateSignatureControls(id); touch(); saveDraft(true);
 }
 
 function removeWhiteBackground(canvas) {
@@ -620,15 +859,17 @@ function removeWhiteBackground(canvas) {
 }
 
 function updateSignatureLabels() {
-  $('labelPJ').textContent = hasInk($('ttdPJ')) ? 'Tanda tangan tersedia' : 'Belum ditandatangani';
-  $('labelTim').textContent = (hasInk($('ttdTim')) ? 'Tanda tangan tersedia' : 'Belum ada tanda tangan') + (ketua() ? ` \u00B7 ${ketua()}` : '');
+  const pj = $('ttdPJ'), tim = $('ttdTim');
+  if (pj) $('labelPJ').textContent = signatureDoneState('ttdPJ') ? 'Selesai · terkunci' : (hasInk(pj) ? 'Tanda tangan tersedia' : 'Belum ditandatangani');
+  if (tim) $('labelTim').textContent = (signatureDoneState('ttdTim') ? 'Selesai · terkunci' : (hasInk(tim) ? 'Tanda tangan tersedia' : 'Belum ada tanda tangan')) + (ketua() ? ` · ${ketua()}` : '');
+  document.querySelectorAll('[data-sign-status]').forEach((el) => updateSignatureControls(el.dataset.signStatus));
 }
 
 function handleUploadTim(ev) {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => { loadImageToCanvas(reader.result, $('ttdTim')); setTimeout(() => touch(), 300); };
+  reader.onload = () => { setSignatureDoneState('ttdTim', false); S.ba.ttdTim = reader.result; loadImageToCanvas(reader.result, $('ttdTim')); setTimeout(() => touch(), 300); };
   reader.readAsDataURL(file);
 }
 
@@ -653,7 +894,12 @@ function requireFields(list) {
   miss.forEach(([id]) => { if (id && $(id)) $(id).classList.add('invalid'); });
   showStatus(`Lengkapi dulu: ${miss.map((m) => m[1]).join(', ')}.`, 'warn');
   const first = miss.find(([id]) => id && $(id));
-  if (first) { $(first[0]).scrollIntoView({ behavior: 'smooth', block: 'center' }); if ($(first[0]).focus) $(first[0]).focus({ preventScroll: true }); }
+  if (first) {
+    const section = $(first[0]).closest('.step-card');
+    const ids = ['sec-data', 'sec-profil', 'sec-instrumen', 'sec-saran', 'sec-ba', 'sec-cetak'];
+    if (section) showStep(ids.indexOf(section.id) + 1);
+    setTimeout(() => { $(first[0]).scrollIntoView({ behavior: 'smooth', block: 'center' }); if ($(first[0]).focus) $(first[0]).focus({ preventScroll: true }); }, 80);
+  }
   return false;
 }
 
@@ -720,7 +966,7 @@ function printDoc(kind, fileName) {
 }
 
 // ---- Berita Acara: seluruh isi diturunkan dari state ----
-function fillBA(ttdPJ, ttdTim) {
+function fillBA(ttdPJ, ttdTim, ttdAnggota = []) {
   const tgl = formatDateNarrative(S.meta.tanggal);
   const surat = S.meta.nomorSurat.trim()
     ? ` berdasarkan Surat Tugas Balai Penyelenggara Jaminan Produk Halal Provinsi Jawa Barat nomor ${S.meta.nomorSurat.trim()}${S.meta.tanggalSurat ? ` tanggal ${formatDateNarrative(S.meta.tanggalSurat).full}` : ''},`
@@ -739,13 +985,50 @@ function fillBA(ttdPJ, ttdTim) {
     box.appendChild(h('div', { class: 'pa-row' }, ...[num, label, ':', (value || '').trim() || '-'].map((t) => h('span', null, t))));
   });
 
-  $('paHasil').textContent = S.ba.hasil.trim() || '-';
-  $('paRekom').textContent = saranList().map((s, i) => `${i + 1}. ${s}`).join('\n') || '-';
+  // Baris narasi dan butir temuan dibuat menjadi elemen terpisah agar indentasi konsisten.
+  const hasilBox = $('paHasil');
+  hasilBox.textContent = '';
+  const hasilLines = String(S.ba.hasil || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  let list = null;
+  hasilLines.forEach((line) => {
+    if (/^Butir yang tidak sesuai:?$/i.test(line)) {
+      hasilBox.appendChild(h('p', { class: 'pa-list-heading' }, line));
+      list = h('ol', { class: 'pa-hasil-list' }); hasilBox.appendChild(list); return;
+    }
+    const numbered = line.match(/^\d+[.)]\s*(.*)$/);
+    if (numbered && list) list.appendChild(h('li', null, numbered[1]));
+    else {
+      list = null;
+      hasilBox.appendChild(h('p', null, line));
+    }
+  });
+  if (!hasilLines.length) hasilBox.textContent = '-';
+
+  const rekomBox = $('paRekom');
+  rekomBox.textContent = '';
+  const rekom = recommendationLines();
+  if (rekom.length) rekom.forEach((line) => rekomBox.appendChild(h('li', null, line)));
+  else rekomBox.appendChild(h('li', null, '-'));
+
   $('paNamaPJ').textContent = `(${S.profil.pj.trim()})`;
   $('paNamaTim').textContent = `(${ketua()})`;
   $('paSigPJ').src = ttdPJ;
   $('paSigTim').src = ttdTim;
+
+  const memberBox = $('paSignMembers');
+  memberBox.textContent = '';
+  const members = S.meta.tim.slice(1).map((name, i) => ({ name: String(name || '').trim(), signature: ttdAnggota[i] || '' })).filter((m) => m.name || m.signature);
+  members.forEach((member) => {
+    const card = h('div', { class: 'pa-member-sign' },
+      h('div', { class: 'pa-sign-label' }, 'Tim Pengawas JPH - Anggota,'),
+      h('div', { class: 'pa-sig-box' }, member.signature ? h('img', { class: 'pa-sig', alt: 'Tanda tangan anggota', src: member.signature }) : null),
+      h('div', { class: 'pa-name' }, `(${member.name || '................................'})`));
+    memberBox.appendChild(card);
+  });
 }
+
+async function ttdPJData() { return trimSignature(S.ba.ttdPJ); }
+async function ttdTimData() { return trimSignature(S.ba.ttdTim); }
 
 async function printBA() {
   collect();
@@ -755,8 +1038,9 @@ async function printBA() {
     ['ttdTim', 'tanda tangan Ketua Tim', hasInk($('ttdTim'))]
   ])) return;
   clearStatus();
-  const [ttdPJ, ttdTim] = await Promise.all([trimSignature(S.ba.ttdPJ), trimSignature(S.ba.ttdTim)]);
-  fillBA(ttdPJ, ttdTim);
+  const memberSources = S.meta.tim.slice(1).map((_, i) => S.ba.ttdAnggota[i] || '');
+  const [ttdPJ, ttdTim, ...ttdAnggota] = await Promise.all([ttdPJData(), ttdTimData(), ...memberSources.map((src) => src ? trimSignature(src) : Promise.resolve(''))]);
+  fillBA(ttdPJ, ttdTim, ttdAnggota);
   await imagesReady($('printBA'));
   const logo = $('paLogo');
   const logoOk = logo.complete && logo.naturalWidth > 0;
@@ -970,13 +1254,27 @@ async function compactSignature(dataUrl) {
   return j.toDataURL('image/jpeg', 0.75);
 }
 
+async function compactMemberSignature(dataUrl) {
+  if (!dataUrl) return '';
+  const img = await loadImage(dataUrl);
+  const k = Math.min(320 / img.naturalWidth, 120 / img.naturalHeight, 1);
+  const w = Math.max(1, Math.round(img.naturalWidth * k));
+  const hh = Math.max(1, Math.round(img.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = hh;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, hh);
+  ctx.drawImage(img, 0, 0, w, hh);
+  return c.toDataURL('image/jpeg', 0.62);
+}
+
 async function buildRecord(id, extra = {}) {
   collect();
   const c = countAll();
   const p = S.profil;
   const lite = JSON.parse(JSON.stringify(S));
-  lite.ba.ttdPJ = ''; lite.ba.ttdTim = ''; // tanda tangan disimpan di kolom sendiri
-  delete lite.rec; delete lite.dirty; delete lite.savedAt;
+  lite.ba.ttdPJ = ''; lite.ba.ttdTim = ''; // tanda tangan utama disimpan di kolom sendiri
+  lite.ba.ttdAnggota = await Promise.all((S.ba.ttdAnggota || []).map(compactMemberSignature));
+  delete lite.rec; delete lite.dirty; delete lite.savedAt; delete lite.submitted;
   return {
     id, ...extra,
     tanggalPengawasan: S.meta.tanggal, nomorSuratTugas: S.meta.nomorSurat, tanggalSuratTugas: S.meta.tanggalSurat,
@@ -985,7 +1283,7 @@ async function buildRecord(id, extra = {}) {
     penanggungJawab: p.pj, noHp: p.hp, statusGerai: p.statusGerai, skalaUsaha: p.skala, dapur: p.dapur, gudang: p.gudang,
     penyeliaHalal: p.penyelia, nikPenyelia: p.nik, nomorSertifikat: sertList().join('; '),
     jmlSesuai: c.S, jmlTidakSesuai: c.TS, jmlTidakBerlaku: c.NA, jmlBelumDinilai: c.belum,
-    hasilPengawasan: S.ba.hasil, saran: saranList().join('\n'),
+    hasilPengawasan: S.ba.hasil, rekomendasi: S.ba.rekom || '', saran: saranList().join('\n'),
     ttdPenanggungJawab: await compactSignature(S.ba.ttdPJ), ttdTim: await compactSignature(S.ba.ttdTim),
     state: JSON.stringify(lite),
     savedAt: S.savedAt, userAgent: navigator.userAgent
@@ -1026,7 +1324,8 @@ async function saveRecord(asNew = false) {
     }
     S.rec = { id: r.id, dibuat: r.dibuat, diubah: r.diubah, pending: '' };
     S.dirty = false;
-    saveDraft(true);
+    S.submitted = true;
+    localStorage.removeItem(DRAFT_KEY);
     renderRecordUi();
     showStatus(r.created ? 'Data tersimpan ke Spreadsheet.' : 'Perubahan tersimpan ke Spreadsheet.', 'ok');
     showToast(r.created ? 'Tersimpan ke Spreadsheet.' : 'Perubahan diperbarui.');
@@ -1116,12 +1415,17 @@ async function openRecord(it) {
     const next = merge(freshState(), r.state || {});
     next.ba.ttdPJ = r.ttdPJ || '';
     next.ba.ttdTim = r.ttdTim || '';
+    if (!Object.prototype.hasOwnProperty.call((r.state || {}).ba || {}, 'rekom')) next.ba.rekom = String(r.rekomendasi || r.saran || '').replace(/\r/g, '');
+    next.ba.ttdAnggota = next.ba.ttdAnggota || [];
+    next.ba.ttdDone = next.ba.ttdDone || { ttdPJ: false, ttdTim: false, anggota: [] };
     next.rec = { id: r.id, dibuat: r.dibuat, diubah: r.diubah, pending: '' };
     next.dirty = false;
     S = next;
     Object.keys(otherOpen).forEach((k) => delete otherOpen[k]);
     applyState();
+    S.submitted = false;
     saveDraft(true);
+    showStep(1, false);
     closeRiwayat();
     clearStatus();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1151,6 +1455,84 @@ async function deleteRecord(it) {
 }
 
 // ---------------------------------------------------------------------------
+// Rekomendasi manual, anggota tanda tangan, dan navigasi model halaman
+// ---------------------------------------------------------------------------
+function recommendationLines() {
+  return String(S.ba.rekom || '').split(/\r?\n/).map((line) => line.trim().replace(/^\s*(?:\d+[.)]|[-•])\s*/, '')).filter(Boolean);
+}
+
+function syncMemberSignaturePads() {
+  const box = $('memberSignatures');
+  if (!box) return;
+  const members = S.meta.tim.slice(1);
+  if (memberSignatureCount !== members.length || box.querySelectorAll('canvas').length !== members.length) {
+    const oldData = members.map((_, i) => {
+      const canvas = $(`ttdAnggota-${i}`);
+      return (S.ba.ttdAnggota[i] || '') || (canvas && hasInk(canvas) ? signatureDataUrl(canvas) : '');
+    });
+    box.textContent = '';
+    S.ba.ttdAnggota = members.map((_, i) => oldData[i] || S.ba.ttdAnggota[i] || '');
+    S.ba.ttdDone.anggota = members.map((_, i) => !!S.ba.ttdDone.anggota[i]);
+    members.forEach((name, i) => {
+      const id = `ttdAnggota-${i}`;
+      const panel = h('div', { class: 'signature-panel member-signature-panel' },
+        h('div', { class: 'signature-title' },
+          h('div', null, h('strong', null, `Anggota Tim ${i + 1}`), h('small', { 'data-member-name': String(i) }, String(name || '').trim() || 'Nama anggota belum diisi'), h('small', { 'data-sign-status': id }, 'Belum ditandatangani')),
+          h('button', { class: 'btn small ghost', type: 'button', 'data-clear': id }, 'Hapus')),
+        h('canvas', { class: 'signature-pad', id, 'aria-label': `Area tanda tangan anggota ${i + 1}` }),
+        h('div', { class: 'signature-tools' },
+          h('button', { class: 'btn small ghost', type: 'button', 'data-undo': id, disabled: true }, 'Undo'),
+          h('button', { class: 'btn small ghost', type: 'button', 'data-redo': id, disabled: true }, 'Redo'),
+          h('button', { class: 'btn small secondary', type: 'button', 'data-finish': id }, 'Selesai tanda tangan')));
+      box.appendChild(panel);
+      setupSignatureCanvas($(id));
+      if (S.ba.ttdAnggota[i]) loadImageToCanvas(S.ba.ttdAnggota[i], $(id));
+    });
+    memberSignatureCount = members.length;
+  } else {
+    members.forEach((name, i) => {
+      const label = box.querySelector(`[data-member-name="${i}"]`);
+      if (label) label.textContent = String(name || '').trim() || 'Nama anggota belum diisi';
+    });
+  }
+  refreshAllSignatureControls();
+}
+
+function stepId(n) {
+  return ['sec-data', 'sec-profil', 'sec-instrumen', 'sec-saran', 'sec-ba', 'sec-cetak'][n - 1];
+}
+function showStep(n, scroll = true) {
+  const step = Math.max(1, Math.min(6, Number(n) || 1));
+  currentStep = step;
+  document.querySelectorAll('.step-card').forEach((card, i) => {
+    const active = i === step - 1;
+    card.classList.toggle('is-active', active);
+    card.hidden = !active;
+    card.setAttribute('aria-hidden', String(!active));
+  });
+  document.querySelectorAll('.nav-step').forEach((btn) => {
+    const active = Number(btn.dataset.step) === step;
+    btn.classList.toggle('is-active', active);
+    if (active) btn.setAttribute('aria-current', 'step'); else btn.removeAttribute('aria-current');
+  });
+  const names = ['Data Pengawasan', 'Profil Pelaku Usaha', 'Instrumen Pengawasan', 'Saran dan Tindaklanjut', 'Berita Acara', 'Simpan dan Cetak'];
+  $('stepCounter').textContent = `Langkah ${step} dari 6`;
+  $('stepName').textContent = names[step - 1];
+  $('stepProgressBar').style.width = `${(step / 6) * 100}%`;
+  saveDraft(true);
+  if (step === 5) {
+    requestAnimationFrame(() => {
+      ['ttdPJ', 'ttdTim', ...S.meta.tim.slice(1).map((_, i) => `ttdAnggota-${i}`)].forEach((id) => {
+        const resize = signatureResizers.get(id);
+        if (resize) resize();
+      });
+      refreshAllSignatureControls();
+    });
+  }
+  if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 (function init() {
@@ -1165,13 +1547,7 @@ async function deleteRecord(it) {
   applyState();
 
   window.addEventListener('resize', () => {
-    // Ukuran kanvas berubah: pertahankan gambar lewat data URL.
-    ['ttdPJ', 'ttdTim'].forEach((id) => {
-      const c = $(id);
-      const data = hasInk(c) ? signatureDataUrl(c) : '';
-      clearCanvas(c);
-      if (data) loadImageToCanvas(data, c);
-    });
+    signatureResizers.forEach((resize) => resize());
   });
 
   BIND.forEach(([id, path, fix]) => {
@@ -1183,6 +1559,7 @@ async function deleteRecord(it) {
     });
   });
   $('baHasil').addEventListener('input', () => { S.ba.hasil = $('baHasil').value; S.ba.auto = false; renderDerived(); scheduleSave(); });
+  $('baRekomInput').addEventListener('input', () => { S.ba.rekom = $('baRekomInput').value; renderDerived(); scheduleSave(); });
   $('btnHasilAuto').addEventListener('click', () => { S.ba.auto = true; renderDerived(); scheduleSave(); showToast('Hasil pengawasan disusun ulang dari Instrumen.'); });
 
   $('btnTambahAnggota').addEventListener('click', () => addToList(LISTS.tim));
@@ -1231,9 +1608,35 @@ async function deleteRecord(it) {
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('riwayatPanel').classList.contains('hidden')) closeRiwayat(); });
   $('btnSimpanDraft').addEventListener('click', () => saveDraft(false));
   $('btnResetForm').addEventListener('click', resetForm);
-  $('btnResetTtd').addEventListener('click', () => { clearCanvas($('ttdPJ')); restoreTimSignature(); touch(); });
+  $('btnResetTtd').addEventListener('click', () => {
+    S.ba.ttdPJ = '';
+    S.ba.ttdTim = '';
+    S.ba.ttdAnggota = S.meta.tim.slice(1).map(() => '');
+    S.ba.ttdDone = { ttdPJ: false, ttdTim: false, anggota: S.meta.tim.slice(1).map(() => false) };
+    ['ttdPJ', 'ttdTim', ...S.meta.tim.slice(1).map((_, i) => `ttdAnggota-${i}`)].forEach((id) => {
+      setSignatureDoneState(id, false);
+      const canvas = $(id); if (canvas) clearCanvas(canvas);
+    });
+    restoreTimSignature(); touch();
+  });
   $('btnSimpanTemplate').addEventListener('click', saveTimTemplate);
   $('btnHapusTemplate').addEventListener('click', deleteTimTemplate);
   $('uploadTtdTim').addEventListener('change', handleUploadTim);
-  document.querySelectorAll('[data-clear]').forEach((btn) => btn.addEventListener('click', () => { clearCanvas($(btn.dataset.clear)); touch(); }));
+  document.addEventListener('click', (ev) => {
+    const clear = ev.target.closest('[data-clear]');
+    const undo = ev.target.closest('[data-undo]');
+    const redo = ev.target.closest('[data-redo]');
+    const finish = ev.target.closest('[data-finish]');
+    if (clear) clearSignature(clear.dataset.clear);
+    else if (undo) undoSignature(undo.dataset.undo);
+    else if (redo) redoSignature(redo.dataset.redo);
+    else if (finish) finishSignature(finish.dataset.finish);
+  });
+  document.querySelectorAll('.nav-step').forEach((btn) => btn.addEventListener('click', () => showStep(btn.dataset.step)));
+  document.querySelectorAll('[data-next]').forEach((btn) => btn.addEventListener('click', () => showStep(btn.dataset.next)));
+  document.querySelectorAll('[data-prev]').forEach((btn) => btn.addEventListener('click', () => showStep(btn.dataset.prev)));
+  document.querySelectorAll('.btn.small.ghost').forEach((btn) => {
+    btn.addEventListener('pointerup', () => btn.classList.add('was-used'), { passive: true });
+  });
+  showStep(1, false);
 })();

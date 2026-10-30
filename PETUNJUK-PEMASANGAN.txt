@@ -1,0 +1,26 @@
+PAKET FILE PENGGANTI - APLIKASI PENGAWASAN JPH
+
+File yang diganti:
+1. index.html
+2. app.js
+3. styles.css
+
+README.md adalah dokumentasi yang diperbarui. File ini boleh menggantikan README lama, tetapi tidak wajib untuk menjalankan aplikasi.
+
+CARA MEMASANG
+1. Buat salinan/backup folder aplikasi yang saat ini digunakan.
+2. Ekstrak ZIP ini.
+3. Salin index.html, app.js, dan styles.css ke folder aplikasi lama, lalu izinkan penggantian file.
+4. Jangan mengganti Code.gs, config.js, atau assets/logo.png. Ketiganya tidak perlu diubah untuk revisi ini.
+5. Muat ulang aplikasi di browser. Jika perubahan belum terlihat, lakukan hard refresh (Ctrl+Shift+R pada Windows/Linux atau Cmd+Shift+R pada macOS).
+
+CATATAN PERILAKU
+- Enam langkah tampil satu per satu. Isian tetap tersimpan sebagai draf lokal saat berpindah langkah.
+- Setelah simpan ke Spreadsheet berhasil, draf lokal sesi tersebut dihapus. Data yang sudah tersimpan tetap ada di Spreadsheet dan bisa dibuka kembali melalui Riwayat.
+- Rekomendasi BA sekarang diisi manual pada Tab 5, terpisah dari Saran dan Tindaklanjut Tab 4.
+- Tanda tangan anggota mengikuti nama anggota setelah Ketua Tim di Tab 1. Undo/Redo, Hapus, dan Selesai/Edit kembali tersedia.
+- Tanda tangan anggota disimpan terkompresi di state_json yang sudah digunakan aplikasi. Dua tanda tangan utama tetap memakai kolom yang sudah ada.
+- Tanda tangan anggota bersifat opsional saat mencetak BA; kotak anggota yang namanya terisi tetap ditampilkan meskipun tanda tangannya belum diisi.
+
+FILE YANG TIDAK DIUBAH
+Code.gs, config.js, instrumen.js, dan assets/logo.png tidak diubah. Tidak ada perubahan atau commit ke GitHub.

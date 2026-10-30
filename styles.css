@@ -306,3 +306,119 @@ body.no-scroll { overflow: hidden; }
 .badge { padding: 2px 8px; border-radius: 999px; background: #e7f0ff; color: #1d4ea3; font-size: 11px; font-weight: 800; }
 .btn.danger { background: #fdecea; color: var(--danger); }
 @media (max-width: 520px) { .hist-actions .btn { flex: 1; } .panel { padding: 14px; } }
+
+/* ===================================================================
+   Penyegaran tampilan, pembeda field, dan navigasi per halaman
+   =================================================================== */
+:root {
+  --bg: #f1f4f9;
+  --card: #ffffff;
+  --text: #1c2434;
+  --muted: #667085;
+  --line: #dce3ed;
+  --primary: #3158a8;
+  --primary-2: #4b74c7;
+  --success: #16794a;
+  --danger: #b42318;
+  --shadow: 0 12px 32px rgba(25, 44, 76, .075);
+  --radius: 20px;
+}
+body { background: radial-gradient(circle at 8% 2%, #e8efff 0, transparent 28rem), var(--bg); }
+.app-header { background: linear-gradient(125deg, #172e5d 0%, #3158a8 58%, #4877c5 100%); }
+.stepnav { gap: 8px; padding: 10px max(14px, calc((100vw - 1100px) / 2)); background: rgba(244,247,252,.94); }
+.nav-step { flex: 0 0 auto; border: 1px solid #d7dfeb; border-radius: 999px; padding: 8px 13px; color: #475467; background: #fff; font-size: 12px; font-weight: 800; transition: .18s ease; }
+.nav-step span { margin-left: 3px; }
+.nav-step:hover { border-color: #8ca6d9; background: #f3f7ff; }
+.nav-step.is-active { color: #fff; border-color: var(--primary); background: linear-gradient(135deg, #3158a8, #4b74c7); box-shadow: 0 4px 12px rgba(49,88,168,.2); }
+.step-progress { max-width: 1100px; margin: 0 auto 14px; padding: 12px 16px; border: 1px solid #dce5f2; border-radius: 15px; background: rgba(255,255,255,.85); }
+.step-progress-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #344054; font-size: 12px; }
+.step-progress-top span { color: var(--muted); text-align: right; }
+.step-progress-track { height: 7px; border-radius: 99px; overflow: hidden; background: #e8edf5; }
+.step-progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3158a8, #79a1eb); transition: width .25s ease; }
+.step-card { min-height: min(72vh, 820px); align-content: start; border: 1px solid #dce5f0; box-shadow: 0 16px 40px rgba(31,54,91,.075); }
+.step-card[hidden] { display: none !important; }
+.step-card.is-active { animation: stepEnter .22s ease both; }
+@keyframes stepEnter { from { opacity: .65; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+.step-label { background: #e8efff; color: #3158a8; }
+#sec-profil .step-label { background: #e5f6f1; color: #16794a; }
+#sec-instrumen .step-label { background: #fff2df; color: #a15c09; }
+#sec-saran .step-label { background: #f3eaff; color: #7440a8; }
+#sec-ba .step-label { background: #e8f4fb; color: #17658a; }
+#sec-cetak .step-label { background: #eaf5ed; color: #247346; }
+/* Setiap field menjadi panel kecil agar satu pertanyaan tidak menyatu dengan pertanyaan lain. */
+label:has(> input), label:has(> textarea) { position: relative; display: block; padding: 11px 12px 12px; border: 1px solid #e2e8f1; border-left: 3px solid #91a9d9; border-radius: 13px; background: #f7f9fd; }
+.grid > label:nth-child(4n+2) { border-left-color: #5ab69a; background: #f4fbf8; }
+.grid > label:nth-child(4n+3) { border-left-color: #e0a24e; background: #fffaf2; }
+.grid > label:nth-child(4n+4) { border-left-color: #a987d1; background: #faf7fe; }
+label:has(> input):focus-within, label:has(> textarea):focus-within { border-color: #91a9d9; box-shadow: 0 0 0 3px rgba(49,88,168,.07); }
+label > span, .field-label { color: #344563; }
+input, textarea { border-color: #d4deeb; background: #fff; }
+.field { padding: 12px; border: 1px solid #e5eaf2; border-radius: 15px; background: #fbfcfe; }
+.field > label { margin-top: 9px; }
+.divider { background: #e5eaf2; }
+.btn { border-radius: 10px; box-shadow: 0 1px 1px rgba(16,24,40,.04); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+.btn:not(:disabled) { pointer-events: auto; opacity: 1; }
+.btn:not(:disabled):hover { filter: brightness(.97); box-shadow: 0 3px 9px rgba(16,24,40,.1); }
+.btn.ghost { background: #f2f5fa; color: #344054; border: 1px solid #d6dfeb; }
+.btn.ghost:not(:disabled) { cursor: pointer; }
+.btn.ghost:disabled, .btn:disabled { opacity: .42; cursor: not-allowed; box-shadow: none; }
+.btn.small.ghost:not(:disabled) { min-height: 32px; }
+.list-row .btn { min-width: 34px; min-height: 38px; }
+.page-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #e8edf4; margin-top: 26px; padding-top: 17px; }
+.page-actions .btn { min-height: 42px; }
+.page-hint { color: #778196; font-size: 12px; }
+.ba-rekom-field { background: #f8faff; border-color: #dce6f5; }
+.rekom-preview-wrap { margin-top: 12px; padding: 11px 13px; border-radius: 12px; border: 1px dashed #d3ddeb; background: #fff; }
+.rekom-preview { margin: 6px 0 0; padding-left: 25px; color: #475467; font-size: 13px; }
+.rekom-preview li { padding: 2px 0 2px 4px; }
+.rekom-preview .empty { color: #98a2b3; }
+.signature-tools { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.signature-tools .btn { min-width: 64px; }
+.signature-pad { border-style: solid; border-color: #cad5e4; background: linear-gradient(#fff, #fcfdff); }
+.signature-pad.is-locked { border-style: solid; border-color: #7eb89b; background: #f2faf5; cursor: not-allowed; }
+.btn.is-complete { color: #12613c; background: #e5f5eb; border: 1px solid #a8d9b9; }
+.member-signature-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5eaf2; }
+.member-signature-heading strong { font-size: 14px; }
+.member-signature-heading p { margin: 4px 0 12px; font-size: 12px; }
+.member-signature-grid { margin-top: 0; }
+.member-signature-panel { background: #fbfcff; }
+.member-signature-panel .signature-pad { height: 150px; }
+.signature-title small[data-sign-status] { color: #667085; }
+.was-used { filter: brightness(.96); }
+
+/* Kerapian paragraf dan indentasi daftar pada Berita Acara PDF. */
+@media print {
+  .pa-opening, .pa-text, .pa-conclusion, .pa-row span:last-child, .pi-meta .v, .pi-tbl td:not(.ct) { text-align: justify; text-justify: inter-word; }
+  .pa-opening { text-align-last: left; }
+  .pa-row { grid-template-columns: 23pt 116pt 13pt minmax(0,1fr); column-gap: 0; }
+  .pa-row span:last-child { padding-left: 2pt; }
+  .pa-text p { margin: 0 0 4pt; text-align: justify; text-indent: 18pt; }
+  .pa-text p:first-child { text-indent: 18pt; }
+  .pa-list-heading { margin: 5pt 0 2pt !important; text-indent: 0 !important; font-weight: normal; }
+  .pa-hasil-list, .pa-rekom-list { margin: 1pt 0 5pt; padding-left: 26pt; text-align: justify; }
+  .pa-hasil-list li, .pa-rekom-list li { padding-left: 4pt; margin: 0 0 2pt; text-align: justify; text-indent: 0; }
+  .pa-conclusion { text-align: justify; text-indent: 18pt; }
+  .pa-sign-members { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 20pt; row-gap: 10pt; margin-top: 10pt; }
+  .pa-member-sign { display: grid; grid-template-rows: auto 48pt auto; text-align: center; break-inside: avoid; page-break-inside: avoid; font-size: 10.4pt; }
+  .pa-member-sign .pa-sign-label { min-height: auto; }
+  .pa-member-sign .pa-sig-box { height: 48pt; }
+  .pa-member-sign .pa-sig { height: 44pt; }
+}
+@media (max-width: 680px) {
+  .stepnav { padding-inline: 10px; }
+  .nav-step { padding: 8px 10px; }
+  .nav-step span { display: none; }
+  .step-card { min-height: 0; grid-template-columns: 34px minmax(0,1fr); padding: 13px; }
+  .step-progress { padding: 10px 12px; }
+  .page-actions { align-items: stretch; flex-direction: column-reverse; }
+  .page-actions .btn { width: 100%; }
+  .page-hint { text-align: center; }
+  .signature-tools .btn { flex: 1 1 auto; }
+}
+
+/* Aksesibilitas tombol kecil dan status fokus keyboard. */
+.btn.small.ghost { touch-action: manipulation; }
+.btn.small.ghost:focus-visible, .nav-step:focus-visible, .btn:focus-visible {
+  outline: 3px solid rgba(49,88,168,.3);
+  outline-offset: 2px;
+}
