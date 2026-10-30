@@ -1,0 +1,20 @@
+PERBAIKAN PENGAWASAN JPH
+
+Isi paket:
+- app.js: memperbaiki pembacaan tanggal dari Google Sheets agar Riwayat tidak lagi memunculkan "Invalid time value".
+- styles.css: memosisikan tanda tangan anggota BA pada kolom kanan, tepat di bawah tanda tangan Ketua Tim Pengawas.
+
+CARA MEMASANG:
+1. Backup terlebih dahulu app.js dan styles.css yang sekarang digunakan.
+2. Ekstrak ZIP ini.
+3. Salin app.js dan styles.css dari hasil ekstrak ke folder utama aplikasi (sejajar dengan index.html).
+4. Pilih Replace/Timpa ketika diminta.
+5. Muat ulang aplikasi. Jika masih memakai file lama dari cache, lakukan hard refresh (Ctrl+Shift+R atau Cmd+Shift+R).
+
+Tidak ada perubahan pada Code.gs, Spreadsheet, data yang tersimpan, index.html, config.js, instrumen.js, atau logo.
+
+CATATAN PENGUJIAN:
+- Sintaks JavaScript lolos `node --check`.
+- Pembacaan tanggal diuji untuk format YYYY-MM-DD, ISO datetime dari Google Sheets (termasuk UTC), objek Date, format DD/MM/YYYY, dan nilai tanggal tidak valid.
+- Arsip ZIP diuji integritasnya.
+- Tata letak tanda tangan diubah pada aturan cetak BA; uji hasil cetak akhir tetap perlu dilakukan pada browser pengguna.

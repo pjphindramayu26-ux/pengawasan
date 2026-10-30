@@ -398,7 +398,8 @@ input, textarea { border-color: #d4deeb; background: #fff; }
   .pa-hasil-list, .pa-rekom-list { margin: 1pt 0 5pt; padding-left: 26pt; text-align: justify; }
   .pa-hasil-list li, .pa-rekom-list li { padding-left: 4pt; margin: 0 0 2pt; text-align: justify; text-indent: 0; }
   .pa-conclusion { text-align: justify; text-indent: 18pt; }
-  .pa-sign-members { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 20pt; row-gap: 10pt; margin-top: 10pt; }
+  /* Tanda tangan anggota berada tepat di bawah kolom Ketua Tim Pengawas (kolom kanan). */
+  .pa-sign-members { width: 50%; margin: 10pt 0 0 50%; display: grid; grid-template-columns: minmax(0,1fr); row-gap: 10pt; }
   .pa-member-sign { display: grid; grid-template-rows: auto 48pt auto; text-align: center; break-inside: avoid; page-break-inside: avoid; font-size: 10.4pt; }
   .pa-member-sign .pa-sign-label { min-height: auto; }
   .pa-member-sign .pa-sig-box { height: 48pt; }

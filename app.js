@@ -62,8 +62,63 @@ function showToast(message, kind = 'ok') {
 function showStatus(message, kind = 'ok') { const el = $('status'); el.textContent = message; el.className = `status ${kind}`; }
 function clearStatus() { $('status').className = 'status hidden'; }
 
-function formatDateNarrative(iso) {
-  const d = new Date(`${iso}T00:00:00`);
+// Normalisasi tanggal dari input form maupun Google Sheets.
+// Cells tanggal yang sudah berformat Date dapat diterima sebagai objek Date/ISO datetime,
+// bukan hanya string YYYY-MM-DD. Jangan menambahkan "T00:00:00" ke ISO datetime karena
+// itu menghasilkan tanggal invalid dan memicu error "Invalid time value" pada Riwayat.
+function parseDateValue(value) {
+  if (value == null || value === '') return null;
+
+  if (value instanceof Date) {
+    const copy = new Date(value.getTime());
+    return Number.isNaN(copy.getTime()) ? null : copy;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    // Angka kecil dianggap serial date Google Sheets (epoch 30-12-1899).
+    if (value > 100000) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
+    return Number.isNaN(utc.getTime()) ? null : new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  // ISO date-only dibuat sebagai tanggal lokal agar tidak bergeser zona waktu.
+  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]) ? date : null;
+  }
+
+  // ISO datetime dari Apps Script/JSON harus diparse sebagai instant, lalu
+  // ditampilkan dalam zona waktu perangkat (mis. Asia/Jakarta). Nilai Date
+  // Google Sheets sering terserialisasi sebagai 17:00Z pada hari sebelumnya.
+  match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[Tt\s]/);
+  if (match) {
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+    const fallback = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  // Format tanggal Indonesia yang mungkin pernah diketik/disimpan sebagai teks.
+  match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (match) {
+    const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+    return date.getFullYear() === Number(match[3]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[1]) ? date : null;
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateNarrative(value) {
+  const d = parseDateValue(value);
+  if (!d) return { weekday: '', day: '', month: '', year: '', full: '' };
   const month = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(d);
   const weekday = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(d);
   const day = String(d.getDate()).padStart(2, '0');
@@ -72,12 +127,11 @@ function formatDateNarrative(iso) {
 }
 
 // "Rabu, 30 September 2026"
-function tglPanjang(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T00:00:00`);
-  const wd = new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(d);
-  const bln = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(d);
-  return `${wd.charAt(0).toUpperCase()}${wd.slice(1)}, ${d.getDate()} ${bln} ${d.getFullYear()}`;
+function tglPanjang(value) {
+  const parts = formatDateNarrative(value);
+  if (!parts.full) return '';
+  const weekday = parts.weekday.charAt(0).toUpperCase() + parts.weekday.slice(1);
+  return `${weekday}, ${parts.full}`;
 }
 
 const fileSafe = (s) => String(s || '').trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'dokumen';
